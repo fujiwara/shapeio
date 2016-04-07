@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"testing"
@@ -63,7 +62,7 @@ func TestRead(t *testing.T) {
 			if realRate > limit {
 				t.Errorf("Limit %f but real rate %f", limit, realRate)
 			}
-			log.Printf(
+			t.Logf(
 				"read %s / %s: Real %s/sec Limit %s/sec. (%f %%)",
 				humanize.IBytes(uint64(n)),
 				elapsed,
@@ -91,7 +90,7 @@ func TestWrite(t *testing.T) {
 			if realRate > limit {
 				t.Errorf("Limit %f but real rate %f", limit, realRate)
 			}
-			log.Printf(
+			t.Logf(
 				"write %s / %s: Real %s/sec Limit %s/sec. (%f %%)",
 				humanize.IBytes(uint64(n)),
 				elapsed,
