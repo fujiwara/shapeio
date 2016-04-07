@@ -85,3 +85,9 @@ SetRateLimit sets rate limit (bytes/sec) to the writer.
 func (s *Writer) Write(p []byte) (int, error)
 ```
 Write writes bytes from p.
+
+##  License
+
+The MIT License (MIT)
+
+Copyright (c) 2016 FUJIWARA Shunichiro
