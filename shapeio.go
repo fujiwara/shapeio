@@ -3,90 +3,95 @@ package shapeio
 import (
 	"io"
 	"time"
+
+	"golang.org/x/net/context"
+	"golang.org/x/time/rate"
 )
 
-type limiter struct {
-	bytesPerSec float64
-	startedAt   time.Time
-	bytes       int64
-}
+const burstLimit = 1000 * 1000 * 1000
 
 type Reader struct {
-	r io.Reader
-	l *limiter
+	r       io.Reader
+	limiter *rate.Limiter
+	ctx     context.Context
 }
 
 type Writer struct {
-	w io.Writer
-	l *limiter
+	w       io.Writer
+	limiter *rate.Limiter
+	ctx     context.Context
 }
 
 // NewReader returns a reader that implements io.Reader with rate limiting.
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
-		r: r,
-		l: &limiter{},
+		r:   r,
+		ctx: context.Background(),
+	}
+}
+
+// NewReaderWithContext returns a reader that implements io.Reader with rate limiting.
+func NewReaderWithContext(r io.Reader, ctx context.Context) *Reader {
+	return &Reader{
+		r:   r,
+		ctx: ctx,
 	}
 }
 
 // NewWriter returns a writer that implements io.Writer with rate limiting.
 func NewWriter(w io.Writer) *Writer {
 	return &Writer{
-		w: w,
-		l: &limiter{},
+		w:   w,
+		ctx: context.Background(),
+	}
+}
+
+// NewWriterWithContext returns a writer that implements io.Writer with rate limiting.
+func NewWriterWithContext(w io.Writer, ctx context.Context) *Writer {
+	return &Writer{
+		w:   w,
+		ctx: ctx,
 	}
 }
 
 // SetRateLimit sets rate limit (bytes/sec) to the reader.
-func (s *Reader) SetRateLimit(l float64) {
-	s.l.bytesPerSec = l
+func (s *Reader) SetRateLimit(bytesPerSec float64) {
+	s.limiter = rate.NewLimiter(rate.Limit(bytesPerSec), burstLimit)
+	s.limiter.AllowN(time.Now(), burstLimit) // spend initial burst
 }
 
 // Read reads bytes into p.
 func (s *Reader) Read(p []byte) (int, error) {
-	if !s.l.start() {
+	if s.limiter == nil {
 		return s.r.Read(p)
 	}
-	return s.l.wait(s.r.Read(p))
+	n, err := s.r.Read(p)
+	if err != nil {
+		return n, err
+	}
+	if err := s.limiter.WaitN(s.ctx, n); err != nil {
+		return n, err
+	}
+	return n, nil
 }
 
 // SetRateLimit sets rate limit (bytes/sec) to the writer.
-func (s *Writer) SetRateLimit(l float64) {
-	s.l.bytesPerSec = l
+func (s *Writer) SetRateLimit(bytesPerSec float64) {
+	s.limiter = rate.NewLimiter(rate.Limit(bytesPerSec), burstLimit)
+	s.limiter.AllowN(time.Now(), burstLimit) // spend initial burst
 }
 
 // Write writes bytes from p.
 func (s *Writer) Write(p []byte) (int, error) {
-	if !s.l.start() {
+	if s.limiter == nil {
 		return s.w.Write(p)
 	}
-	return s.l.wait(s.w.Write(p))
-}
-
-func (l *limiter) start() bool {
-	if l.bytesPerSec == 0 {
-		return false
-	}
-	if l.startedAt.IsZero() {
-		l.startedAt = time.Now()
-	}
-	return true
-}
-
-func (l *limiter) wait(n int, err error) (int, error) {
-	if n == 0 || err != nil {
+	n, err := s.w.Write(p)
+	if err != nil {
 		return n, err
 	}
-	elapsed := time.Since(l.startedAt)
-	l.bytes += int64(n)
-	rate := float64(l.bytes) / elapsed.Seconds()
-	if rate < l.bytesPerSec {
-		return n, nil
+	if err := s.limiter.WaitN(s.ctx, n); err != nil {
+		return n, err
 	}
-	d := time.Duration(float64(l.bytes)/l.bytesPerSec*float64(time.Second) - float64(elapsed))
-	time.Sleep(d)
-	// reset shaping window
-	l.startedAt = time.Now()
-	l.bytes = 0
-	return n, nil
+	return n, err
 }
