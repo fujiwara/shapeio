@@ -30,7 +30,7 @@ func NewReader(r io.Reader) *Reader {
 	}
 }
 
-// NewReader returns a reader that implements io.Reader with rate limiting.
+// NewReaderWithContext returns a reader that implements io.Reader with rate limiting.
 func NewReaderWithContext(r io.Reader, ctx context.Context) *Reader {
 	return &Reader{
 		r:   r,
@@ -46,7 +46,7 @@ func NewWriter(w io.Writer) *Writer {
 	}
 }
 
-// NewWriter returns a writer that implements io.Writer with rate limiting.
+// NewWriterWithContext returns a writer that implements io.Writer with rate limiting.
 func NewWriterWithContext(w io.Writer, ctx context.Context) *Writer {
 	return &Writer{
 		w:   w,
@@ -57,7 +57,7 @@ func NewWriterWithContext(w io.Writer, ctx context.Context) *Writer {
 // SetRateLimit sets rate limit (bytes/sec) to the reader.
 func (s *Reader) SetRateLimit(bytesPerSec float64) {
 	s.limiter = rate.NewLimiter(rate.Limit(bytesPerSec), burstLimit)
-	s.limiter.AllowN(time.Now(), burstLimit)
+	s.limiter.AllowN(time.Now(), burstLimit) // spend initial burst
 }
 
 // Read reads bytes into p.
