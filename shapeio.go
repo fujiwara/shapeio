@@ -1,10 +1,10 @@
 package shapeio
 
 import (
+	"context"
 	"io"
 	"time"
 
-	"golang.org/x/net/context"
 	"golang.org/x/time/rate"
 )
 
