@@ -56,7 +56,7 @@ func TestRead(t *testing.T) {
 			n, err := io.Copy(ioutil.Discard, sio)
 			elapsed := time.Since(start)
 			if err != nil {
-				t.Errorf("io.Copy failed %s", err)
+				t.Error("io.Copy failed", err)
 			}
 			realRate := float64(n) / elapsed.Seconds()
 			if realRate > limit {
@@ -84,7 +84,7 @@ func TestWrite(t *testing.T) {
 			n, err := io.Copy(sio, src)
 			elapsed := time.Since(start)
 			if err != nil {
-				t.Errorf("io.Copy failed %s", err)
+				t.Error("io.Copy failed", err)
 			}
 			realRate := float64(n) / elapsed.Seconds()
 			if realRate > limit {
