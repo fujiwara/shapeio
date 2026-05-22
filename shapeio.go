@@ -55,9 +55,20 @@ func NewWriterWithContext(w io.Writer, ctx context.Context) *Writer {
 }
 
 // SetRateLimit sets rate limit (bytes/sec) to the reader.
+//
+// SetRateLimit may be called more than once to change the rate dynamically.
+// On the first call, a new rate limiter is created and the initial burst is
+// consumed. Subsequent calls update the existing limiter's rate in place, so
+// it is safe to call concurrently with Read/Write. Note that a rate change
+// does not affect a Wait that has already started inside an in-flight
+// Read/Write call; the new rate takes effect from the next call.
 func (s *Reader) SetRateLimit(bytesPerSec float64) {
-	s.limiter = rate.NewLimiter(rate.Limit(bytesPerSec), burstLimit)
-	s.limiter.AllowN(time.Now(), burstLimit) // spend initial burst
+	if s.limiter == nil {
+		s.limiter = rate.NewLimiter(rate.Limit(bytesPerSec), burstLimit)
+		s.limiter.AllowN(time.Now(), burstLimit) // spend initial burst
+		return
+	}
+	s.limiter.SetLimit(rate.Limit(bytesPerSec))
 }
 
 // Read reads bytes into p.
@@ -76,9 +87,18 @@ func (s *Reader) Read(p []byte) (int, error) {
 }
 
 // SetRateLimit sets rate limit (bytes/sec) to the writer.
+//
+// SetRateLimit may be called more than once to change the rate dynamically.
+// On the first call, a new rate limiter is created and the initial burst is
+// consumed. Subsequent calls update the existing limiter's rate in place, so
+// it is safe to call concurrently with Write.
 func (s *Writer) SetRateLimit(bytesPerSec float64) {
-	s.limiter = rate.NewLimiter(rate.Limit(bytesPerSec), burstLimit)
-	s.limiter.AllowN(time.Now(), burstLimit) // spend initial burst
+	if s.limiter == nil {
+		s.limiter = rate.NewLimiter(rate.Limit(bytesPerSec), burstLimit)
+		s.limiter.AllowN(time.Now(), burstLimit) // spend initial burst
+		return
+	}
+	s.limiter.SetLimit(rate.Limit(bytesPerSec))
 }
 
 // Write writes bytes from p.

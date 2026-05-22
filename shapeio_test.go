@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -72,6 +73,83 @@ func TestRead(t *testing.T) {
 			)
 		}
 	}
+}
+
+// TestDynamicReadRateLimit verifies that calling SetRateLimit during a read
+// updates the rate in place. The reader starts with a slow limit that would
+// take well over a second to finish, then is bumped to a fast limit; the
+// transfer must complete well before the original ETA.
+func TestDynamicReadRateLimit(t *testing.T) {
+	const size = 512 * 1024 // 512KB
+	src := bytes.NewReader(bytes.Repeat([]byte{0}, size))
+	sio := shapeio.NewReader(src)
+	sio.SetRateLimit(32 * 1024) // 32KB/sec → would need ~16s to read 512KB
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		time.Sleep(200 * time.Millisecond)
+		sio.SetRateLimit(50 * 1024 * 1024) // 50MB/sec
+	}()
+
+	start := time.Now()
+	n, err := io.Copy(ioutil.Discard, sio)
+	elapsed := time.Since(start)
+	wg.Wait()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != size {
+		t.Fatalf("read %d bytes, want %d", n, size)
+	}
+	if elapsed >= 5*time.Second {
+		t.Errorf("expected dynamic rate change to finish well under 5s, took %s", elapsed)
+	}
+	t.Logf("dynamic read: %s in %s", humanize.IBytes(uint64(n)), elapsed)
+}
+
+// TestDynamicWriteRateLimit is the writer counterpart of TestDynamicReadRateLimit.
+// The data is written in small chunks so the rate change is observable between
+// Write calls (rate.Limiter.SetLimit does not retroactively shorten a Wait
+// that is already in progress).
+func TestDynamicWriteRateLimit(t *testing.T) {
+	const (
+		size      = 512 * 1024
+		chunkSize = 16 * 1024
+	)
+	sio := shapeio.NewWriter(ioutil.Discard)
+	sio.SetRateLimit(32 * 1024) // 32KB/sec
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		time.Sleep(200 * time.Millisecond)
+		sio.SetRateLimit(50 * 1024 * 1024)
+	}()
+
+	chunk := make([]byte, chunkSize)
+	start := time.Now()
+	written := 0
+	for written < size {
+		m, err := sio.Write(chunk)
+		written += m
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	elapsed := time.Since(start)
+	wg.Wait()
+
+	if written != size {
+		t.Fatalf("wrote %d bytes, want %d", written, size)
+	}
+	if elapsed >= 5*time.Second {
+		t.Errorf("expected dynamic rate change to finish well under 5s, took %s", elapsed)
+	}
+	t.Logf("dynamic write: %s in %s", humanize.IBytes(uint64(written)), elapsed)
 }
 
 func TestWrite(t *testing.T) {
