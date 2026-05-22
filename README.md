@@ -1,6 +1,15 @@
 # shapeio
 
-Traffic shaper for Golang io.Reader and io.Writer
+Traffic shaper for Golang io.Reader and io.Writer.
+
+shapeio wraps any `io.Reader` / `io.Writer` and shapes its throughput to a
+configurable bytes-per-second rate, backed by `golang.org/x/time/rate`.
+
+- Set the rate up front, or change it at any time
+- Pause and resume by setting the rate to `0`
+- Express the rate as either `bytes/sec` or "N bytes per duration"
+- `ReadCloser` / `WriteCloser` variants delegate `Close` to the wrapped source/sink
+- `SetRateLimit` is safe to call concurrently with `Read` / `Write`
 
 ```go
 import "github.com/fujiwara/shapeio"
