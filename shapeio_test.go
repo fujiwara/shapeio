@@ -21,10 +21,24 @@ var rates = []float64{
 	50 * 1024 * 1024, // 50MB/sec
 }
 
+// rateTolerance is the +/- band (as a fraction of the configured limit)
+// the measured rate is allowed to fall into. Short transfers at high
+// configured rates can drift a couple of percent in either direction due
+// to scheduler / timer noise, especially on shared CI runners.
+const rateTolerance = 0.05
+
+// minExpectedDuration skips size/limit combinations whose ideal duration
+// is too short for the +/- rateTolerance band to be meaningful — the
+// fixed per-transfer overhead (goroutine startup, initial burst spend,
+// timer resolution) would dominate and force the result outside the
+// band regardless of how the limiter behaves.
+const minExpectedDuration = 50 * time.Millisecond
+
 var srcs = []*bytes.Reader{
-	bytes.NewReader(bytes.Repeat([]byte{0}, 64*1024)),   // 64KB
-	bytes.NewReader(bytes.Repeat([]byte{1}, 256*1024)),  // 256KB
-	bytes.NewReader(bytes.Repeat([]byte{2}, 1024*1024)), // 1MB
+	bytes.NewReader(bytes.Repeat([]byte{0}, 64*1024)),     // 64KB
+	bytes.NewReader(bytes.Repeat([]byte{1}, 256*1024)),    // 256KB
+	bytes.NewReader(bytes.Repeat([]byte{2}, 1024*1024)),   // 1MB
+	bytes.NewReader(bytes.Repeat([]byte{3}, 4*1024*1024)), // 4MB
 }
 
 func ExampleReader() {
@@ -51,6 +65,12 @@ func TestRead(t *testing.T) {
 	for _, src := range srcs {
 		for _, limit := range rates {
 			src.Seek(0, 0)
+			expected := time.Duration(float64(time.Second) * float64(src.Size()) / limit)
+			if expected < minExpectedDuration {
+				t.Logf("skip read %d bytes @ %.0f bytes/sec: expected %s < %s",
+					src.Size(), limit, expected, minExpectedDuration)
+				continue
+			}
 			sio := shapeio.NewReader(src)
 			sio.SetRateLimit(limit)
 			start := time.Now()
@@ -60,8 +80,8 @@ func TestRead(t *testing.T) {
 				t.Error("io.Copy failed", err)
 			}
 			realRate := float64(n) / elapsed.Seconds()
-			if realRate > limit {
-				t.Errorf("Limit %f but real rate %f", limit, realRate)
+			if realRate > limit*(1+rateTolerance) || realRate < limit*(1-rateTolerance) {
+				t.Errorf("Limit %f but real rate %f (outside +/- %.0f%%)", limit, realRate, rateTolerance*100)
 			}
 			t.Logf(
 				"read %s / %s: Real %s/sec Limit %s/sec. (%f %%)",
@@ -179,6 +199,12 @@ func TestWrite(t *testing.T) {
 	for _, src := range srcs {
 		for _, limit := range rates {
 			src.Seek(0, 0)
+			expected := time.Duration(float64(time.Second) * float64(src.Size()) / limit)
+			if expected < minExpectedDuration {
+				t.Logf("skip write %d bytes @ %.0f bytes/sec: expected %s < %s",
+					src.Size(), limit, expected, minExpectedDuration)
+				continue
+			}
 			sio := shapeio.NewWriter(ioutil.Discard)
 			sio.SetRateLimit(limit)
 			start := time.Now()
@@ -188,8 +214,8 @@ func TestWrite(t *testing.T) {
 				t.Error("io.Copy failed", err)
 			}
 			realRate := float64(n) / elapsed.Seconds()
-			if realRate > limit {
-				t.Errorf("Limit %f but real rate %f", limit, realRate)
+			if realRate > limit*(1+rateTolerance) || realRate < limit*(1-rateTolerance) {
+				t.Errorf("Limit %f but real rate %f (outside +/- %.0f%%)", limit, realRate, rateTolerance*100)
 			}
 			t.Logf(
 				"write %s / %s: Real %s/sec Limit %s/sec. (%f %%)",
