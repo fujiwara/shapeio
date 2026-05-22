@@ -172,13 +172,13 @@ func NewWriteCloserWithContext(wc io.WriteCloser, ctx context.Context) *WriteClo
 
 ## Example CLI
 
-`_example/download` is a small `curl`-like downloader that demonstrates dynamic
+`example/download` is a small `curl`-like downloader that demonstrates dynamic
 rate switching via `SIGUSR1`. It downloads a URL to a file using two
 configured rates and toggles between them every time the process receives
 `SIGUSR1`.
 
 ```sh
-go run ./_example/download \
+go run ./example/download \
     --default-rate-limit 1M \
     --lower-rate-limit 100k \
     -o /tmp/out.bin \
