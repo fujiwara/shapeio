@@ -76,6 +76,20 @@ func (s *Reader) SetRateLimit(bytesPerSec float64) {
 	}
 }
 
+// SetRateLimitEvery sets rate limit as bytes per the given duration.
+//
+// It is equivalent to SetRateLimit(float64(bytes) / per.Seconds()) and is
+// useful when the rate is more naturally expressed as "N bytes every D"
+// (e.g. SetRateLimitEvery(60, time.Minute)). The same concurrency and
+// in-flight-Wait semantics as SetRateLimit apply.
+//
+// Inputs are not validated; the resulting rate follows
+// golang.org/x/time/rate semantics (a non-positive per yields an infinite,
+// i.e. unlimited, rate; a negative bytes yields a negative rate).
+func (s *Reader) SetRateLimitEvery(bytes int64, per time.Duration) {
+	s.SetRateLimit(float64(bytes) / per.Seconds())
+}
+
 // Read reads bytes into p.
 func (s *Reader) Read(p []byte) (int, error) {
 	lim := s.limiter.Load()
@@ -110,6 +124,20 @@ func (s *Writer) SetRateLimit(bytesPerSec float64) {
 	if !s.limiter.CompareAndSwap(nil, newLim) {
 		s.limiter.Load().SetLimit(rate.Limit(bytesPerSec))
 	}
+}
+
+// SetRateLimitEvery sets rate limit as bytes per the given duration.
+//
+// It is equivalent to SetRateLimit(float64(bytes) / per.Seconds()) and is
+// useful when the rate is more naturally expressed as "N bytes every D"
+// (e.g. SetRateLimitEvery(60, time.Minute)). The same concurrency and
+// in-flight-Wait semantics as SetRateLimit apply.
+//
+// Inputs are not validated; the resulting rate follows
+// golang.org/x/time/rate semantics (a non-positive per yields an infinite,
+// i.e. unlimited, rate; a negative bytes yields a negative rate).
+func (s *Writer) SetRateLimitEvery(bytes int64, per time.Duration) {
+	s.SetRateLimit(float64(bytes) / per.Seconds())
 }
 
 // Write writes bytes from p.

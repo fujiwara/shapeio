@@ -64,6 +64,16 @@ limiter's rate in place. Note that a rate change does not affect a Wait that
 has already started inside an in-flight Read call; the new rate takes effect
 from the next call.
 
+#### func (*Reader) SetRateLimitEvery
+
+```go
+func (s *Reader) SetRateLimitEvery(bytes int64, per time.Duration)
+```
+SetRateLimitEvery sets rate limit as bytes per the given duration. It is
+equivalent to `SetRateLimit(float64(bytes) / per.Seconds())` and is useful
+when the rate is more naturally expressed as "N bytes every D" (e.g.
+`SetRateLimitEvery(60, time.Minute)`).
+
 #### type Writer
 
 ```go
@@ -92,6 +102,16 @@ and the initial burst is consumed. Subsequent calls update the existing
 limiter's rate in place. Note that a rate change does not affect a Wait that
 has already started inside an in-flight Write call; the new rate takes effect
 from the next call.
+
+#### func (*Writer) SetRateLimitEvery
+
+```go
+func (s *Writer) SetRateLimitEvery(bytes int64, per time.Duration)
+```
+SetRateLimitEvery sets rate limit as bytes per the given duration. It is
+equivalent to `SetRateLimit(float64(bytes) / per.Seconds())` and is useful
+when the rate is more naturally expressed as "N bytes every D" (e.g.
+`SetRateLimitEvery(60, time.Minute)`).
 
 #### func (*Writer) Write
 

@@ -195,6 +195,50 @@ func TestConcurrentSetRateLimitInitial(t *testing.T) {
 	wg.Wait()
 }
 
+// TestSetRateLimitEvery verifies that SetRateLimitEvery(bytes, per) produces
+// the same observable rate as SetRateLimit(float64(bytes)/per.Seconds()).
+func TestSetRateLimitEvery(t *testing.T) {
+	t.Run("Reader", func(t *testing.T) {
+		const size = 1024 * 1024
+		src := bytes.NewReader(bytes.Repeat([]byte{0}, size))
+		sio := shapeio.NewReader(src)
+		sio.SetRateLimitEvery(2*1024*1024, time.Second) // 2MB/sec
+
+		start := time.Now()
+		n, err := io.Copy(ioutil.Discard, sio)
+		elapsed := time.Since(start)
+		if err != nil {
+			t.Fatal(err)
+		}
+		realRate := float64(n) / elapsed.Seconds()
+		expected := float64(2 * 1024 * 1024)
+		if realRate > expected*(1+rateTolerance) || realRate < expected*(1-rateTolerance) {
+			t.Errorf("Limit %f but real rate %f (outside +/- %.0f%%)", expected, realRate, rateTolerance*100)
+		}
+		t.Logf("read %s in %s -> %s/sec", humanize.IBytes(uint64(n)), elapsed, humanize.IBytes(uint64(realRate)))
+	})
+
+	t.Run("Writer", func(t *testing.T) {
+		const size = 1024 * 1024
+		src := bytes.NewReader(bytes.Repeat([]byte{0}, size))
+		sio := shapeio.NewWriter(ioutil.Discard)
+		sio.SetRateLimitEvery(2*1024*1024, time.Second)
+
+		start := time.Now()
+		n, err := io.Copy(sio, src)
+		elapsed := time.Since(start)
+		if err != nil {
+			t.Fatal(err)
+		}
+		realRate := float64(n) / elapsed.Seconds()
+		expected := float64(2 * 1024 * 1024)
+		if realRate > expected*(1+rateTolerance) || realRate < expected*(1-rateTolerance) {
+			t.Errorf("Limit %f but real rate %f (outside +/- %.0f%%)", expected, realRate, rateTolerance*100)
+		}
+		t.Logf("wrote %s in %s -> %s/sec", humanize.IBytes(uint64(n)), elapsed, humanize.IBytes(uint64(realRate)))
+	})
+}
+
 func TestWrite(t *testing.T) {
 	for _, src := range srcs {
 		for _, limit := range rates {
