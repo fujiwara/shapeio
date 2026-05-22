@@ -3,6 +3,7 @@ package shapeio
 import (
 	"context"
 	"io"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -12,13 +13,13 @@ const burstLimit = 1000 * 1000 * 1000
 
 type Reader struct {
 	r       io.Reader
-	limiter *rate.Limiter
+	limiter atomic.Pointer[rate.Limiter]
 	ctx     context.Context
 }
 
 type Writer struct {
 	w       io.Writer
-	limiter *rate.Limiter
+	limiter atomic.Pointer[rate.Limiter]
 	ctx     context.Context
 }
 
@@ -55,42 +56,73 @@ func NewWriterWithContext(w io.Writer, ctx context.Context) *Writer {
 }
 
 // SetRateLimit sets rate limit (bytes/sec) to the reader.
+//
+// SetRateLimit may be called more than once and concurrently with Read to
+// change the rate dynamically. On the first call, a new rate limiter is
+// created and the initial burst is consumed. Subsequent calls update the
+// existing limiter's rate in place. Note that a rate change does not affect
+// a Wait that has already started inside an in-flight Read call; the new
+// rate takes effect from the next call.
 func (s *Reader) SetRateLimit(bytesPerSec float64) {
-	s.limiter = rate.NewLimiter(rate.Limit(bytesPerSec), burstLimit)
-	s.limiter.AllowN(time.Now(), burstLimit) // spend initial burst
+	if lim := s.limiter.Load(); lim != nil {
+		lim.SetLimit(rate.Limit(bytesPerSec))
+		return
+	}
+	newLim := rate.NewLimiter(rate.Limit(bytesPerSec), burstLimit)
+	newLim.AllowN(time.Now(), burstLimit) // spend initial burst
+	if !s.limiter.CompareAndSwap(nil, newLim) {
+		// Another goroutine installed a limiter first; apply the rate to it.
+		s.limiter.Load().SetLimit(rate.Limit(bytesPerSec))
+	}
 }
 
 // Read reads bytes into p.
 func (s *Reader) Read(p []byte) (int, error) {
-	if s.limiter == nil {
+	lim := s.limiter.Load()
+	if lim == nil {
 		return s.r.Read(p)
 	}
 	n, err := s.r.Read(p)
 	if err != nil {
 		return n, err
 	}
-	if err := s.limiter.WaitN(s.ctx, n); err != nil {
+	if err := lim.WaitN(s.ctx, n); err != nil {
 		return n, err
 	}
 	return n, nil
 }
 
 // SetRateLimit sets rate limit (bytes/sec) to the writer.
+//
+// SetRateLimit may be called more than once and concurrently with Write to
+// change the rate dynamically. On the first call, a new rate limiter is
+// created and the initial burst is consumed. Subsequent calls update the
+// existing limiter's rate in place. Note that a rate change does not affect
+// a Wait that has already started inside an in-flight Write call; the new
+// rate takes effect from the next call.
 func (s *Writer) SetRateLimit(bytesPerSec float64) {
-	s.limiter = rate.NewLimiter(rate.Limit(bytesPerSec), burstLimit)
-	s.limiter.AllowN(time.Now(), burstLimit) // spend initial burst
+	if lim := s.limiter.Load(); lim != nil {
+		lim.SetLimit(rate.Limit(bytesPerSec))
+		return
+	}
+	newLim := rate.NewLimiter(rate.Limit(bytesPerSec), burstLimit)
+	newLim.AllowN(time.Now(), burstLimit) // spend initial burst
+	if !s.limiter.CompareAndSwap(nil, newLim) {
+		s.limiter.Load().SetLimit(rate.Limit(bytesPerSec))
+	}
 }
 
 // Write writes bytes from p.
 func (s *Writer) Write(p []byte) (int, error) {
-	if s.limiter == nil {
+	lim := s.limiter.Load()
+	if lim == nil {
 		return s.w.Write(p)
 	}
 	n, err := s.w.Write(p)
 	if err != nil {
 		return n, err
 	}
-	if err := s.limiter.WaitN(s.ctx, n); err != nil {
+	if err := lim.WaitN(s.ctx, n); err != nil {
 		return n, err
 	}
 	return n, err
