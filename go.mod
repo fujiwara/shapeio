@@ -1,5 +1,5 @@
 module github.com/fujiwara/shapeio
 
-go 1.19
+go 1.25.0
 
-require golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
+require golang.org/x/time v0.15.0
