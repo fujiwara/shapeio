@@ -152,6 +152,29 @@ func TestDynamicWriteRateLimit(t *testing.T) {
 	t.Logf("dynamic write: %s in %s", humanize.IBytes(uint64(written)), elapsed)
 }
 
+// TestConcurrentSetRateLimitInitial exercises the case where SetRateLimit and
+// Read race from the very first call — i.e. before any limiter has been
+// installed. With the atomic.Pointer guard this must be race-free under
+// -race.
+func TestConcurrentSetRateLimitInitial(t *testing.T) {
+	src := bytes.NewReader(bytes.Repeat([]byte{0}, 256*1024))
+	sio := shapeio.NewReader(src)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			sio.SetRateLimit(10 * 1024 * 1024)
+		}
+	}()
+
+	if _, err := io.Copy(ioutil.Discard, sio); err != nil {
+		t.Fatal(err)
+	}
+	wg.Wait()
+}
+
 func TestWrite(t *testing.T) {
 	for _, src := range srcs {
 		for _, limit := range rates {

@@ -57,12 +57,12 @@ func (s *Reader) SetRateLimit(l float64)
 ```
 SetRateLimit sets rate limit (bytes/sec) to the reader.
 
-SetRateLimit may be called more than once to change the rate dynamically. On
-the first call, a new rate limiter is created and the initial burst is
-consumed. Subsequent calls update the existing limiter's rate in place, so it
-is safe to call concurrently with Read. Note that a rate change does not
-affect a Wait that has already started inside an in-flight Read call; the new
-rate takes effect from the next call.
+SetRateLimit may be called more than once and concurrently with Read to
+change the rate dynamically. On the first call, a new rate limiter is created
+and the initial burst is consumed. Subsequent calls update the existing
+limiter's rate in place. Note that a rate change does not affect a Wait that
+has already started inside an in-flight Read call; the new rate takes effect
+from the next call.
 
 #### type Writer
 
@@ -86,12 +86,12 @@ func (s *Writer) SetRateLimit(l float64)
 ```
 SetRateLimit sets rate limit (bytes/sec) to the writer.
 
-SetRateLimit may be called more than once to change the rate dynamically. On
-the first call, a new rate limiter is created and the initial burst is
-consumed. Subsequent calls update the existing limiter's rate in place, so it
-is safe to call concurrently with Write. Note that a rate change does not
-affect a Wait that has already started inside an in-flight Write call; the
-new rate takes effect from the next call.
+SetRateLimit may be called more than once and concurrently with Write to
+change the rate dynamically. On the first call, a new rate limiter is created
+and the initial burst is consumed. Subsequent calls update the existing
+limiter's rate in place. Note that a rate change does not affect a Wait that
+has already started inside an in-flight Write call; the new rate takes effect
+from the next call.
 
 #### func (*Writer) Write
 
