@@ -170,6 +170,29 @@ func NewWriteCloser(wc io.WriteCloser) *WriteCloser
 func NewWriteCloserWithContext(wc io.WriteCloser, ctx context.Context) *WriteCloser
 ```
 
+## Example CLI
+
+`_example/download` is a small `curl`-like downloader that demonstrates dynamic
+rate switching via `SIGUSR1`. It downloads a URL to a file using two
+configured rates and toggles between them every time the process receives
+`SIGUSR1`.
+
+```sh
+go run ./_example/download \
+    --default-rate-limit 1M \
+    --lower-rate-limit 100k \
+    -o /tmp/out.bin \
+    https://example.com/big.bin
+
+# In another shell, toggle the rate live:
+kill -USR1 <pid>
+```
+
+Rate values accept a trailing `k`/`M`/`G` (IEC binary units). A value of `0`
+for `--lower-rate-limit` (the default) means "pause" — the underlying limiter
+blocks once its initial burst is consumed, and the next `SIGUSR1` resumes
+downloading at the default rate.
+
 ##  License
 
 The MIT License (MIT)
