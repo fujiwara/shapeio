@@ -93,6 +93,11 @@ func run(url, out string, defaultBps, lowerBps float64) error {
 	rc := shapeio.NewReadCloserWithContext(resp.Body, ctx)
 	rc.SetRateLimit(defaultBps)
 
+	pid := os.Getpid()
+	fmt.Fprintf(os.Stderr,
+		"PID %d — send 'kill -USR1 %d' to toggle between default (%s/s) and lower (%s/s)\n",
+		pid, pid, iBytes(int64(defaultBps)), iBytes(int64(lowerBps)))
+
 	var inLower atomic.Bool
 	usr1 := make(chan os.Signal, 1)
 	signal.Notify(usr1, syscall.SIGUSR1)
