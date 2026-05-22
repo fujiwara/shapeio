@@ -5,26 +5,30 @@ Traffic shaper for Golang io.Reader and io.Writer
 ```go
 import "github.com/fujiwara/shapeio"
 
-func ExampleReader() {
-	// example for downloading http body with rate limit.
-	resp, _ := http.Get("http://example.com")
-	defer resp.Body.Close()
+resp, _ := http.Get("http://example.com/big.bin")
+// ReadCloser bundles the rate-limited Read with Close on the underlying body.
+rc := shapeio.NewReadCloser(resp.Body)
+defer rc.Close()
 
-	reader := shapeio.NewReader(resp.Body)
-	reader.SetRateLimit(1024 * 10) // 10KB/sec
-	io.Copy(ioutil.Discard, reader)
-}
+// "N bytes per duration" reads naturally; equivalent to SetRateLimit(1<<20).
+rc.SetRateLimitEvery(1*1024*1024, time.Second) // 1 MiB/sec
 
-func ExampleWriter() {
-	// example for writing file with rate limit.
-	src := bytes.NewReader(bytes.Repeat([]byte{0}, 32*1024)) // 32KB
-	f, _ := os.Create("/tmp/foo")
-	writer := shapeio.NewWriter(f)
-	writer.SetRateLimit(1024 * 10) // 10KB/sec
-	io.Copy(writer, src)
-	f.Close()
-}
+// SetRateLimit is safe to call again at any time, even concurrently with Read.
+// Pass 0 to pause; pass any value to resume.
+go func() {
+	time.Sleep(2 * time.Second)
+	rc.SetRateLimit(0)          // pause
+	time.Sleep(time.Second)
+	rc.SetRateLimit(512 * 1024) // resume at 512 KiB/sec
+}()
+
+f, _ := os.Create("/tmp/out.bin")
+defer f.Close()
+io.Copy(f, rc)
 ```
+
+`NewWriteCloser` / `SetRateLimitEvery` are mirrored on the writer side.
+See `example/download` for a runnable CLI that toggles the rate live via `SIGUSR1`.
 
 ## Usage
 
