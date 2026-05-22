@@ -122,12 +122,10 @@ func TestDynamicReadRateLimit(t *testing.T) {
 	sio.SetRateLimit(32 * 1024) // 32KB/sec → would need ~16s to read 512KB
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		time.Sleep(200 * time.Millisecond)
 		sio.SetRateLimit(50 * 1024 * 1024) // 50MB/sec
-	}()
+	})
 
 	start := time.Now()
 	n, err := io.Copy(ioutil.Discard, sio)
@@ -159,12 +157,10 @@ func TestDynamicWriteRateLimit(t *testing.T) {
 	sio.SetRateLimit(32 * 1024) // 32KB/sec
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		time.Sleep(200 * time.Millisecond)
 		sio.SetRateLimit(50 * 1024 * 1024)
-	}()
+	})
 
 	chunk := make([]byte, chunkSize)
 	start := time.Now()
@@ -197,13 +193,11 @@ func TestConcurrentSetRateLimitInitial(t *testing.T) {
 	sio := shapeio.NewReader(src)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 200; i++ {
+	wg.Go(func() {
+		for range 200 {
 			sio.SetRateLimit(10 * 1024 * 1024)
 		}
-	}()
+	})
 
 	if _, err := io.Copy(ioutil.Discard, sio); err != nil {
 		t.Fatal(err)
