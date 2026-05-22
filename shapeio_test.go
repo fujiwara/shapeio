@@ -2,6 +2,7 @@ package shapeio_test
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -10,9 +11,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/fujiwara/shapeio"
 )
+
+// iBytes formats b as an IEC binary size string (e.g. "1.0 MiB"). It is a
+// tiny replacement for humanize.IBytes, kept here so the test suite has no
+// external dependency.
+func iBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(b)/float64(div), "KMGTPE"[exp])
+}
 
 var rates = []float64{
 	500 * 1024,       // 500KB/sec
@@ -85,10 +101,10 @@ func TestRead(t *testing.T) {
 			}
 			t.Logf(
 				"read %s / %s: Real %s/sec Limit %s/sec. (%f %%)",
-				humanize.IBytes(uint64(n)),
+				iBytes(n),
 				elapsed,
-				humanize.IBytes(uint64(realRate)),
-				humanize.IBytes(uint64(limit)),
+				iBytes(int64(realRate)),
+				iBytes(int64(limit)),
 				realRate/limit*100,
 			)
 		}
@@ -127,7 +143,7 @@ func TestDynamicReadRateLimit(t *testing.T) {
 	if elapsed >= 5*time.Second {
 		t.Errorf("expected dynamic rate change to finish well under 5s, took %s", elapsed)
 	}
-	t.Logf("dynamic read: %s in %s", humanize.IBytes(uint64(n)), elapsed)
+	t.Logf("dynamic read: %s in %s", iBytes(n), elapsed)
 }
 
 // TestDynamicWriteRateLimit is the writer counterpart of TestDynamicReadRateLimit.
@@ -169,7 +185,7 @@ func TestDynamicWriteRateLimit(t *testing.T) {
 	if elapsed >= 5*time.Second {
 		t.Errorf("expected dynamic rate change to finish well under 5s, took %s", elapsed)
 	}
-	t.Logf("dynamic write: %s in %s", humanize.IBytes(uint64(written)), elapsed)
+	t.Logf("dynamic write: %s in %s", iBytes(int64(written)), elapsed)
 }
 
 // TestConcurrentSetRateLimitInitial exercises the case where SetRateLimit and
@@ -279,7 +295,7 @@ func TestSetRateLimitEvery(t *testing.T) {
 		if realRate > expected*(1+rateTolerance) || realRate < expected*(1-rateTolerance) {
 			t.Errorf("Limit %f but real rate %f (outside +/- %.0f%%)", expected, realRate, rateTolerance*100)
 		}
-		t.Logf("read %s in %s -> %s/sec", humanize.IBytes(uint64(n)), elapsed, humanize.IBytes(uint64(realRate)))
+		t.Logf("read %s in %s -> %s/sec", iBytes(n), elapsed, iBytes(int64(realRate)))
 	})
 
 	t.Run("Writer", func(t *testing.T) {
@@ -299,7 +315,7 @@ func TestSetRateLimitEvery(t *testing.T) {
 		if realRate > expected*(1+rateTolerance) || realRate < expected*(1-rateTolerance) {
 			t.Errorf("Limit %f but real rate %f (outside +/- %.0f%%)", expected, realRate, rateTolerance*100)
 		}
-		t.Logf("wrote %s in %s -> %s/sec", humanize.IBytes(uint64(n)), elapsed, humanize.IBytes(uint64(realRate)))
+		t.Logf("wrote %s in %s -> %s/sec", iBytes(n), elapsed, iBytes(int64(realRate)))
 	})
 }
 
@@ -327,10 +343,10 @@ func TestWrite(t *testing.T) {
 			}
 			t.Logf(
 				"write %s / %s: Real %s/sec Limit %s/sec. (%f %%)",
-				humanize.IBytes(uint64(n)),
+				iBytes(n),
 				elapsed,
-				humanize.IBytes(uint64(realRate)),
-				humanize.IBytes(uint64(limit)),
+				iBytes(int64(realRate)),
+				iBytes(int64(limit)),
 				realRate/limit*100,
 			)
 		}
