@@ -195,6 +195,70 @@ func TestConcurrentSetRateLimitInitial(t *testing.T) {
 	wg.Wait()
 }
 
+type closeRecorderReader struct {
+	io.Reader
+	closed bool
+}
+
+func (c *closeRecorderReader) Close() error {
+	c.closed = true
+	return nil
+}
+
+type closeRecorderWriter struct {
+	io.Writer
+	closed bool
+}
+
+func (c *closeRecorderWriter) Close() error {
+	c.closed = true
+	return nil
+}
+
+// TestReadCloser verifies NewReadCloser exposes Read/SetRateLimit and
+// delegates Close to the wrapped io.ReadCloser.
+func TestReadCloser(t *testing.T) {
+	rec := &closeRecorderReader{Reader: bytes.NewReader([]byte("hello"))}
+	rc := shapeio.NewReadCloser(rec)
+	rc.SetRateLimit(1024 * 1024)
+
+	got, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "hello" {
+		t.Fatalf("read %q, want %q", got, "hello")
+	}
+	if err := rc.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if !rec.closed {
+		t.Error("Close was not delegated to the wrapped ReadCloser")
+	}
+}
+
+// TestWriteCloser verifies NewWriteCloser exposes Write/SetRateLimit and
+// delegates Close to the wrapped io.WriteCloser.
+func TestWriteCloser(t *testing.T) {
+	var buf bytes.Buffer
+	rec := &closeRecorderWriter{Writer: &buf}
+	wc := shapeio.NewWriteCloser(rec)
+	wc.SetRateLimit(1024 * 1024)
+
+	if _, err := wc.Write([]byte("hello")); err != nil {
+		t.Fatal(err)
+	}
+	if buf.String() != "hello" {
+		t.Fatalf("wrote %q, want %q", buf.String(), "hello")
+	}
+	if err := wc.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if !rec.closed {
+		t.Error("Close was not delegated to the wrapped WriteCloser")
+	}
+}
+
 // TestSetRateLimitEvery verifies that SetRateLimitEvery(bytes, per) produces
 // the same observable rate as SetRateLimit(float64(bytes)/per.Seconds()).
 func TestSetRateLimitEvery(t *testing.T) {

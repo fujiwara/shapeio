@@ -55,6 +55,54 @@ func NewWriterWithContext(w io.Writer, ctx context.Context) *Writer {
 	}
 }
 
+// ReadCloser is a rate-limited io.ReadCloser. It embeds *Reader so all
+// rate-limit methods (SetRateLimit, SetRateLimitEvery, ...) are available
+// directly, and Close delegates to the wrapped io.ReadCloser.
+type ReadCloser struct {
+	*Reader
+	c io.Closer
+}
+
+// NewReadCloser returns a ReadCloser that rate-limits reads from rc and
+// closes rc on Close. SetRateLimit must still be called to set the rate.
+func NewReadCloser(rc io.ReadCloser) *ReadCloser {
+	return &ReadCloser{Reader: NewReader(rc), c: rc}
+}
+
+// NewReadCloserWithContext is NewReadCloser with a context for WaitN.
+func NewReadCloserWithContext(rc io.ReadCloser, ctx context.Context) *ReadCloser {
+	return &ReadCloser{Reader: NewReaderWithContext(rc, ctx), c: rc}
+}
+
+// Close closes the wrapped io.ReadCloser.
+func (rc *ReadCloser) Close() error {
+	return rc.c.Close()
+}
+
+// WriteCloser is a rate-limited io.WriteCloser. It embeds *Writer so all
+// rate-limit methods are available directly, and Close delegates to the
+// wrapped io.WriteCloser.
+type WriteCloser struct {
+	*Writer
+	c io.Closer
+}
+
+// NewWriteCloser returns a WriteCloser that rate-limits writes to wc and
+// closes wc on Close. SetRateLimit must still be called to set the rate.
+func NewWriteCloser(wc io.WriteCloser) *WriteCloser {
+	return &WriteCloser{Writer: NewWriter(wc), c: wc}
+}
+
+// NewWriteCloserWithContext is NewWriteCloser with a context for WaitN.
+func NewWriteCloserWithContext(wc io.WriteCloser, ctx context.Context) *WriteCloser {
+	return &WriteCloser{Writer: NewWriterWithContext(wc, ctx), c: wc}
+}
+
+// Close closes the wrapped io.WriteCloser.
+func (wc *WriteCloser) Close() error {
+	return wc.c.Close()
+}
+
 // SetRateLimit sets rate limit (bytes/sec) to the reader.
 //
 // SetRateLimit may be called more than once and concurrently with Read to
