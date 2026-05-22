@@ -35,9 +35,10 @@ const rateTolerance = 0.05
 const minExpectedDuration = 50 * time.Millisecond
 
 var srcs = []*bytes.Reader{
-	bytes.NewReader(bytes.Repeat([]byte{0}, 64*1024)),   // 64KB
-	bytes.NewReader(bytes.Repeat([]byte{1}, 256*1024)),  // 256KB
-	bytes.NewReader(bytes.Repeat([]byte{2}, 1024*1024)), // 1MB
+	bytes.NewReader(bytes.Repeat([]byte{0}, 64*1024)),     // 64KB
+	bytes.NewReader(bytes.Repeat([]byte{1}, 256*1024)),    // 256KB
+	bytes.NewReader(bytes.Repeat([]byte{2}, 1024*1024)),   // 1MB
+	bytes.NewReader(bytes.Repeat([]byte{3}, 4*1024*1024)), // 4MB
 }
 
 func ExampleReader() {
