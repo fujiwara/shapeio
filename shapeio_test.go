@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"sync"
@@ -64,7 +63,7 @@ func ExampleReader() {
 
 	reader := shapeio.NewReader(resp.Body)
 	reader.SetRateLimit(1024 * 10) // 10KB/sec
-	io.Copy(ioutil.Discard, reader)
+	io.Copy(io.Discard, reader)
 }
 
 func ExampleWriter() {
@@ -90,7 +89,7 @@ func TestRead(t *testing.T) {
 			sio := shapeio.NewReader(src)
 			sio.SetRateLimit(limit)
 			start := time.Now()
-			n, err := io.Copy(ioutil.Discard, sio)
+			n, err := io.Copy(io.Discard, sio)
 			elapsed := time.Since(start)
 			if err != nil {
 				t.Error("io.Copy failed", err)
@@ -130,7 +129,7 @@ func TestDynamicReadRateLimit(t *testing.T) {
 	}()
 
 	start := time.Now()
-	n, err := io.Copy(ioutil.Discard, sio)
+	n, err := io.Copy(io.Discard, sio)
 	elapsed := time.Since(start)
 	wg.Wait()
 
@@ -155,7 +154,7 @@ func TestDynamicWriteRateLimit(t *testing.T) {
 		size      = 512 * 1024
 		chunkSize = 16 * 1024
 	)
-	sio := shapeio.NewWriter(ioutil.Discard)
+	sio := shapeio.NewWriter(io.Discard)
 	sio.SetRateLimit(32 * 1024) // 32KB/sec
 
 	var wg sync.WaitGroup
@@ -205,7 +204,7 @@ func TestConcurrentSetRateLimitInitial(t *testing.T) {
 		}
 	}()
 
-	if _, err := io.Copy(ioutil.Discard, sio); err != nil {
+	if _, err := io.Copy(io.Discard, sio); err != nil {
 		t.Fatal(err)
 	}
 	wg.Wait()
@@ -285,7 +284,7 @@ func TestSetRateLimitEvery(t *testing.T) {
 		sio.SetRateLimitEvery(2*1024*1024, time.Second) // 2MB/sec
 
 		start := time.Now()
-		n, err := io.Copy(ioutil.Discard, sio)
+		n, err := io.Copy(io.Discard, sio)
 		elapsed := time.Since(start)
 		if err != nil {
 			t.Fatal(err)
@@ -301,7 +300,7 @@ func TestSetRateLimitEvery(t *testing.T) {
 	t.Run("Writer", func(t *testing.T) {
 		const size = 1024 * 1024
 		src := bytes.NewReader(bytes.Repeat([]byte{0}, size))
-		sio := shapeio.NewWriter(ioutil.Discard)
+		sio := shapeio.NewWriter(io.Discard)
 		sio.SetRateLimitEvery(2*1024*1024, time.Second)
 
 		start := time.Now()
@@ -329,7 +328,7 @@ func TestWrite(t *testing.T) {
 					src.Size(), limit, expected, minExpectedDuration)
 				continue
 			}
-			sio := shapeio.NewWriter(ioutil.Discard)
+			sio := shapeio.NewWriter(io.Discard)
 			sio.SetRateLimit(limit)
 			start := time.Now()
 			n, err := io.Copy(sio, src)
