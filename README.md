@@ -120,6 +120,56 @@ func (s *Writer) Write(p []byte) (int, error)
 ```
 Write writes bytes from p.
 
+#### type ReadCloser
+
+```go
+type ReadCloser struct {
+	*Reader
+}
+```
+
+ReadCloser is a rate-limited `io.ReadCloser`. It embeds `*Reader` so all
+rate-limit methods (`SetRateLimit`, `SetRateLimitEvery`, ...) are available
+directly, and `Close` delegates to the wrapped `io.ReadCloser`. Use this when
+you want to pass a single value around that owns both the rate-limited read
+and the responsibility to close the underlying source.
+
+#### func  NewReadCloser
+
+```go
+func NewReadCloser(rc io.ReadCloser) *ReadCloser
+```
+
+#### func  NewReadCloserWithContext
+
+```go
+func NewReadCloserWithContext(rc io.ReadCloser, ctx context.Context) *ReadCloser
+```
+
+#### type WriteCloser
+
+```go
+type WriteCloser struct {
+	*Writer
+}
+```
+
+WriteCloser is a rate-limited `io.WriteCloser`. It embeds `*Writer` so all
+rate-limit methods are available directly, and `Close` delegates to the
+wrapped `io.WriteCloser`.
+
+#### func  NewWriteCloser
+
+```go
+func NewWriteCloser(wc io.WriteCloser) *WriteCloser
+```
+
+#### func  NewWriteCloserWithContext
+
+```go
+func NewWriteCloserWithContext(wc io.WriteCloser, ctx context.Context) *WriteCloser
+```
+
 ##  License
 
 The MIT License (MIT)
